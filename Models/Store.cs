@@ -21,10 +21,10 @@ public class Store
 
     [Required]
     public DateTime CreationDate { get; set; } = DateTime.UtcNow;
-    // (CLAVE FORÁNEA) 
+    // Relación / Clave Foránea
     [Required]
     public int IdStoreType { get; set; }
 
     [ForeignKey(nameof(IdStoreType))]
-    public StoreType StoreType { get; set; } = null!;
+    public StoreType? StoreType { get; set; }
 }
