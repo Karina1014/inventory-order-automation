@@ -1,0 +1,42 @@
+/* ==========================================================
+   VARIABLES Y BASE (HIJO: variables.css)
+   Paleta: #03045E | #0077B6 | #00B4D8 | #90E0EF | #CAF0F8
+   ========================================================== */
+
+:root {
+    /* Paleta Institucional */
+    --brand-dark:       #03045E;  /* Azul Noche */
+    --brand-primary:    #0077B6;  /* Azul Principal */
+    --brand-accent:     #00B4D8;  /* Cyan Acento */
+    --brand-soft:       #90E0EF;  /* Azul Cielo Claro */
+    --brand-ice:        #CAF0F8;  /* Azul Hielo */
+
+    /* Superficie y Fondos */
+    --bg-canvas:        #F4F8FB;  /* Fondo sereno de trabajo */
+    --surface-card:     #FFFFFF;  /* Blanco para tarjetas y tablas */
+    --text-primary:     #0F1E36;  /* Texto oscuro de alta legibilidad */
+    --text-secondary:   #5B6E88;  /* Texto descriptivo secundario */
+
+    /* Elevaciones y Bordes */
+    --shadow-sm:        0 1px 3px rgba(3, 4, 94, 0.04);
+    --shadow-md:        0 4px 16px rgba(3, 4, 94, 0.06);
+    --shadow-lg:        0 12px 32px rgba(3, 4, 94, 0.12);
+    --radius-sm:        6px;
+    --radius-md:        10px;
+    --radius-lg:        16px;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    background-color: var(--bg-canvas) !important;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Clases Utilitarias Rápidas de Color */
+.text-brand-dark    { color: var(--brand-dark) !important; }
+.text-brand-primary { color: var(--brand-primary) !important; }
+.text-brand-accent  { color: var(--brand-accent) !important; }
+.bg-brand-dark      { background-color: var(--brand-dark) !important; }
+.bg-brand-primary   { background-color: var(--brand-primary) !important; }
+.bg-brand-ice       { background-color: var(--brand-ice) !important; }

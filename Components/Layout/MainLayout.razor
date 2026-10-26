@@ -1,20 +1,55 @@
 @inherits LayoutComponentBase
 
-<div class="page d-flex flex-column min-vh-100">
-    <header class="navbar navbar-expand-lg navbar-dark bg-dark px-3 shadow">
-        <a class="navbar-brand fw-bold" href="/">📦 InventoryFlow</a>
-        <div class="navbar-nav">
-            <a class="nav-link text-white" href="/stores">
-                <i class="bi bi-shop me-1"></i> Sucursales
-            </a>
+<div class="erp-container">
+    @* SIDEBAR AZUL OSCURO (#03045E) *@
+    <aside class="erp-sidebar">
+        <div class="erp-sidebar-brand">
+            <div class="erp-sidebar-avatar">
+                <i class="bi bi-hospital"></i>
+            </div>
+            <div>
+                <div class="fw-bold fs-6 lh-sm">Veterinaria<br /><span style="color: var(--brand-soft);">MedVet</span></div>
+            </div>
         </div>
-    </header>
 
-    <main class="container my-4 flex-grow-1">
-        @Body
-    </main>
+        <div class="erp-sidebar-section-title">Módulos</div>
+        <nav class="erp-sidebar-nav">
+            <a href="/" class="erp-sidebar-link">
+                <i class="bi bi-house"></i>
+                <span>Inicio</span>
+            </a>
+            <a href="/stores" class="erp-sidebar-link active">
+                <i class="bi bi-shop"></i>
+                <span>Sucursales</span>
+            </a>
+        </nav>
 
-    <footer class="bg-light text-center py-3 border-top mt-auto text-muted">
-        <small>InventoryFlow &copy; 2026 - Sistema de Control de Inventario</small>
-    </footer>
+        <div class="mt-auto p-3 text-center border-top" style="border-color: rgba(255,255,255,0.08) !important;">
+            <small class="text-white-50" style="font-size: 0.75rem;">InventoryFlow v1.0 &copy; 2026</small>
+        </div>
+    </aside>
+
+    @* ÁREA PRINCIPAL CON TOPBAR BLANCA *@
+    <div class="erp-main-area">
+        <header class="erp-topbar">
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-secondary small fw-medium">
+                    <i class="bi bi-hospital me-1" style="color: var(--brand-primary);"></i> Red Veterinaria MedVet &bull; Módulo de Sucursales
+                </span>
+            </div>
+
+            <div class="erp-user-menu">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; color: var(--brand-dark); border: 1px solid #CBD5E1;">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                    <span class="fw-semibold small" style="color: var(--brand-dark);">Administrador</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-grow-1 p-4">
+            @Body
+        </main>
+    </div>
 </div>

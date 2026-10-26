@@ -1,0 +1,8 @@
+/* ==========================================================
+   INVENTORYFLOW - HOJA DE ESTILOS PRINCIPAL (PADRE)
+   Importa los módulos de estilos hijos para máxima reutilización
+   ========================================================== */
+
+@import url('variables.css');
+@import url('layout.css');
+@import url('components.css');
