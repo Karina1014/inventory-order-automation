@@ -59,6 +59,14 @@ public class StoreRepository : IStoreRepository
         return await SaveAsync();
     }
 
+    public async Task<ICollection<StoreType>> GetStoreTypesAsync()
+    {
+        return await _context.StoreTypes
+            .OrderBy(st => st.Name)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
     public async Task<bool> SaveAsync()
     {
         return await _context.SaveChangesAsync() >= 0;

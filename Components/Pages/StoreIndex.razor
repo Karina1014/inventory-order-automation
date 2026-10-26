@@ -1,0 +1,485 @@
+@page "/stores"
+@rendermode InteractiveServer
+@inject IStoreRepository StoreRepository
+@inject IMapper Mapper
+
+<PageTitle>Sucursales - InventoryFlow</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold text-dark mb-0">
+            <i class="bi bi-shop text-primary me-2"></i>Gestión de Sucursales
+        </h2>
+        <small class="text-muted">Administra las sucursales y puntos de inventario del sistema</small>
+    </div>
+    <button class="btn btn-primary px-3 shadow-sm" @onclick="OpenCreateModal">
+        <i class="bi bi-plus-circle me-2"></i>Nueva Sucursal
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(feedbackMessage))
+{
+    <div class="alert @feedbackClass alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi @feedbackIcon me-2"></i>@feedbackMessage
+        <button type="button" class="btn-close" @onclick="() => feedbackMessage = null"></button>
+    </div>
+}
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 bg-light" 
+                           placeholder="Buscar por nombre de sucursal..." 
+                           @bind="searchTerm" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-6 text-md-end text-muted">
+                Total de sucursales: <strong class="text-dark">@FilteredStores.Count()</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Descripción</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col" class="text-center" style="width: 120px;">Estado</th>
+                    <th scope="col" style="width: 150px;">Fecha Registro</th>
+                    <th scope="col" class="text-end" style="width: 140px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <div class="text-muted mt-2">Cargando sucursales...</div>
+                        </td>
+                    </tr>
+                }
+                else if (!FilteredStores.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            No se encontraron sucursales registradas.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var store in FilteredStores)
+                    {
+                        <tr>
+                            <td class="fw-semibold text-dark">@store.Name</td>
+                            <td class="text-muted">@store.Description</td>
+                            <td>
+                                <span class="badge bg-light text-dark border">
+                                    @(store.StoreTypeName ?? "No asignado")
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                @if (store.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                        <i class="bi bi-check-circle me-1"></i>Activo
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                        <i class="bi bi-dash-circle me-1"></i>Inactivo
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-muted small">
+                                @store.CreationDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" title="Editar" @onclick="() => OpenEditModal(store)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" title="Eliminar" @onclick="() => OpenDeleteModal(store)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* MODAL CREAR / EDITAR *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditing ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditing ? "Editar Sucursal" : "Nueva Sucursal")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    @if (isEditing)
+                    {
+                        <EditForm Model="updateModel" OnValidSubmit="HandleUpdate">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger small mb-3" />
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Nombre de la Sucursal</label>
+                                <InputText class="form-control" @bind-Value="updateModel.Name" placeholder="Ej. Sucursal Central" />
+                                <ValidationMessage For="() => updateModel.Name" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Descripción</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="updateModel.Description" placeholder="Ubicación o detalles de la sucursal..." />
+                                <ValidationMessage For="() => updateModel.Description" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Tipo de Sucursal</label>
+                                <InputSelect class="form-select" @bind-Value="updateModel.IdStoreType">
+                                    <option value="0">-- Seleccione un tipo --</option>
+                                    @foreach (var type in availableTypes)
+                                    {
+                                        <option value="@type.IdStoreType">@type.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => updateModel.IdStoreType" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3 form-check form-switch">
+                                <InputCheckbox class="form-check-input" id="isActiveCheck" @bind-Value="updateModel.IsActive" />
+                                <label class="form-check-label fw-semibold" for="isActiveCheck">Sucursal Activa</label>
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2 mt-4">
+                                <button type="button" class="btn btn-secondary px-3" @onclick="CloseModal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary px-4" disabled="@isSaving">
+                                    @(isSaving ? "Guardando..." : "Actualizar")
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                    else
+                    {
+                        <EditForm Model="createModel" OnValidSubmit="HandleCreate">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger small mb-3" />
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Nombre de la Sucursal</label>
+                                <InputText class="form-control" @bind-Value="createModel.Name" placeholder="Ej. Sucursal Norte" />
+                                <ValidationMessage For="() => createModel.Name" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Descripción</label>
+                                <InputTextArea class="form-control" rows="3" @bind-Value="createModel.Description" placeholder="Ubicación o detalles de la sucursal..." />
+                                <ValidationMessage For="() => createModel.Description" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Tipo de Sucursal</label>
+                                <InputSelect class="form-select" @bind-Value="createModel.IdStoreType">
+                                    <option value="0">-- Seleccione un tipo --</option>
+                                    @foreach (var type in availableTypes)
+                                    {
+                                        <option value="@type.IdStoreType">@type.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => createModel.IdStoreType" class="text-danger small" />
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2 mt-4">
+                                <button type="button" class="btn btn-secondary px-3" @onclick="CloseModal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary px-4" disabled="@isSaving">
+                                    @(isSaving ? "Guardando..." : "Guardar Sucursal")
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* MODAL CONFIRMAR ELIMINACIÓN *@
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Confirmar Eliminación
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDeleteModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="mb-0">
+                        ¿Estás seguro de que deseas eliminar la sucursal <strong>@storeToDelete?.Name</strong>? Esta acción no se puede deshacer.
+                    </p>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary px-3" @onclick="CloseDeleteModal">Cancelar</button>
+                    <button type="button" class="btn btn-danger px-4" @onclick="ExecuteDeleteAsync" disabled="@isDeleting">
+                        @(isDeleting ? "Eliminando..." : "Eliminar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<StoreDto> stores = new();
+    private List<StoreType> availableTypes = new();
+    private string searchTerm = string.Empty;
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    private int selectedStoreId;
+    private StoreDto? storeToDelete;
+
+    private CreateStoreDto createModel = new();
+    private UpdateStoreDto updateModel = new();
+
+    private string? feedbackMessage;
+    private string feedbackClass = "alert-success";
+    private string feedbackIcon = "bi-check-circle";
+
+    private IEnumerable<StoreDto> FilteredStores =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? stores
+            : stores.Where(s => (s.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) ||
+                                (s.Description?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoreTypesAsync();
+        await LoadStoresAsync();
+    }
+
+    private async Task LoadStoreTypesAsync()
+    {
+        try
+        {
+            var types = await StoreRepository.GetStoreTypesAsync();
+            availableTypes = types.ToList();
+        }
+        catch
+        {
+            availableTypes = new();
+        }
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var rawStores = await StoreRepository.GetStoresAsync();
+            stores = Mapper.Map<List<StoreDto>>(rawStores);
+        }
+        catch (Exception ex)
+        {
+            ShowFeedback($"Error al cargar sucursales: {ex.Message}", false);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        isEditing = false;
+        createModel = new CreateStoreDto
+        {
+            IdStoreType = availableTypes.FirstOrDefault()?.IdStoreType ?? 1
+        };
+        showModal = true;
+    }
+
+    private void OpenEditModal(StoreDto store)
+    {
+        isEditing = true;
+        selectedStoreId = store.IdStore;
+        updateModel = new UpdateStoreDto
+        {
+            Name = store.Name,
+            Description = store.Description,
+            IsActive = store.IsActive,
+            IdStoreType = store.IdStoreType
+        };
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        isSaving = false;
+    }
+
+    private async Task HandleCreate()
+    {
+        isSaving = true;
+        try
+        {
+            if (await StoreRepository.StoreExistsAsync(createModel.Name))
+            {
+                ShowFeedback("Ya existe una sucursal con ese nombre.", false);
+                isSaving = false;
+                return;
+            }
+
+            var store = Mapper.Map<Store>(createModel);
+            var success = await StoreRepository.CreateStoreAsync(store);
+
+            if (success)
+            {
+                ShowFeedback("Sucursal registrada exitosamente.", true);
+                CloseModal();
+                await LoadStoresAsync();
+            }
+            else
+            {
+                ShowFeedback("No se pudo guardar la sucursal en la base de datos.", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowFeedback($"Error: {ex.Message}", false);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task HandleUpdate()
+    {
+        isSaving = true;
+        try
+        {
+            var existingStore = await StoreRepository.GetStoreAsync(selectedStoreId);
+            if (existingStore == null)
+            {
+                ShowFeedback("No se encontró la sucursal a actualizar.", false);
+                return;
+            }
+
+            if (!string.Equals(existingStore.Name.Trim(), updateModel.Name.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                await StoreRepository.StoreExistsAsync(updateModel.Name))
+            {
+                ShowFeedback("Ya existe otra sucursal con ese nombre.", false);
+                return;
+            }
+
+            var store = Mapper.Map<Store>(updateModel);
+            store.IdStore = selectedStoreId;
+            store.CreationDate = existingStore.CreationDate;
+
+            var success = await StoreRepository.UpdateStoreAsync(store);
+
+            if (success)
+            {
+                ShowFeedback("Sucursal actualizada exitosamente.", true);
+                CloseModal();
+                await LoadStoresAsync();
+            }
+            else
+            {
+                ShowFeedback("No se pudo actualizar la sucursal.", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowFeedback($"Error: {ex.Message}", false);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void OpenDeleteModal(StoreDto store)
+    {
+        storeToDelete = store;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        storeToDelete = null;
+        isDeleting = false;
+    }
+
+    private async Task ExecuteDeleteAsync()
+    {
+        if (storeToDelete == null) return;
+
+        isDeleting = true;
+        try
+        {
+            var entity = await StoreRepository.GetStoreAsync(storeToDelete.IdStore);
+            if (entity != null)
+            {
+                var success = await StoreRepository.DeleteStoreAsync(entity);
+                if (success)
+                {
+                    ShowFeedback($"Sucursal '{storeToDelete.Name}' eliminada correctamente.", true);
+                    CloseDeleteModal();
+                    await LoadStoresAsync();
+                }
+                else
+                {
+                    ShowFeedback("No se pudo eliminar la sucursal.", false);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowFeedback($"Error: {ex.Message}", false);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void ShowFeedback(string message, bool isSuccess)
+    {
+        feedbackMessage = message;
+        feedbackClass = isSuccess ? "alert-success" : "alert-danger";
+        feedbackIcon = isSuccess ? "bi-check-circle" : "bi-exclamation-triangle";
+    }
+}

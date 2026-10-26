@@ -12,5 +12,6 @@ public interface IStoreRepository
     Task<bool> CreateStoreAsync(Store store);
     Task<bool> UpdateStoreAsync(Store store);
     Task<bool> DeleteStoreAsync(Store store);
+    Task<ICollection<StoreType>> GetStoreTypesAsync();
     Task<bool> SaveAsync();
 }
