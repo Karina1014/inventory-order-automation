@@ -20,9 +20,12 @@ public class Product
     [MaxLength(250)]
     public string Description { get; set; } = string.Empty;
 
+    // Relación / Clave Foránea hacia Categoría
     [Required]
-    [MaxLength(50)]
-    public string Category { get; set; } = string.Empty;
+    public int IdCategory { get; set; }
+
+    [ForeignKey(nameof(IdCategory))]
+    public Category? Category { get; set; }
 
     [Required]
     public int MinimumStockThreshold { get; set; } = 5;

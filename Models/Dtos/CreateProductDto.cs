@@ -17,8 +17,8 @@ public class CreateProductDto
     public string Description { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La categoría del producto es obligatoria.")]
-    [MaxLength(50, ErrorMessage = "La categoría no puede superar los 50 caracteres.")]
-    public string Category { get; set; } = string.Empty;
+    [Range(1, int.MaxValue, ErrorMessage = "Debe seleccionar una categoría válida.")]
+    public int IdCategory { get; set; }
 
     [Required(ErrorMessage = "El umbral de stock mínimo es obligatorio.")]
     [Range(0, 100000, ErrorMessage = "El umbral mínimo debe ser mayor o igual a 0.")]

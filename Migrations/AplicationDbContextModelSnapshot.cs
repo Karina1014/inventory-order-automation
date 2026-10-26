@@ -21,18 +21,13 @@ namespace InventoryFlow.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("InventoryFlow.Models.Product", b =>
+            modelBuilder.Entity("InventoryFlow.Models.Category", b =>
                 {
-                    b.Property<int>("IdProduct")
+                    b.Property<int>("IdCategory")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IdProduct"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IdCategory"));
 
                     b.Property<DateTime>("CreationDate")
                         .HasColumnType("datetime2");
@@ -41,6 +36,38 @@ namespace InventoryFlow.Migrations
                         .IsRequired()
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("IdCategory");
+
+                    b.ToTable("Categories");
+                });
+
+            modelBuilder.Entity("InventoryFlow.Models.Product", b =>
+                {
+                    b.Property<int>("IdProduct")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IdProduct"));
+
+                    b.Property<DateTime>("CreationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("IdCategory")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -62,6 +89,8 @@ namespace InventoryFlow.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("IdProduct");
+
+                    b.HasIndex("IdCategory");
 
                     b.ToTable("Products");
                 });
@@ -167,6 +196,17 @@ namespace InventoryFlow.Migrations
                     b.HasKey("IdStoreType");
 
                     b.ToTable("StoreTypes");
+                });
+
+            modelBuilder.Entity("InventoryFlow.Models.Product", b =>
+                {
+                    b.HasOne("InventoryFlow.Models.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("IdCategory")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("InventoryFlow.Models.ProductInventory", b =>

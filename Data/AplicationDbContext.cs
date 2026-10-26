@@ -10,5 +10,6 @@ public class AplicationDbContext: DbContext {
     public DbSet <Store> Stores { get; set; }
     public DbSet <StoreType> StoreTypes { get; set; }
     public DbSet <Product> Products { get; set; }
+    public DbSet <Category> Categories { get; set; }
     public DbSet <ProductInventory> ProductInventories { get; set; }
 }

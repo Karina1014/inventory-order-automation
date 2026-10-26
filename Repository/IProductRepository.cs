@@ -12,6 +12,6 @@ public interface IProductRepository
     Task<bool> CreateProductAsync(Product product);
     Task<bool> UpdateProductAsync(Product product);
     Task<bool> DeleteProductAsync(Product product);
-    Task<ICollection<string>> GetCategoriesAsync();
+    Task<ICollection<Category>> GetCategoriesAsync();
     Task<bool> SaveAsync();
 }

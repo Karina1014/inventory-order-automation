@@ -15,6 +15,7 @@ public class ProductRepository : IProductRepository
     public async Task<ICollection<Product>> GetProductsAsync()
     {
         return await _context.Products
+            .Include(p => p.Category)
             .Include(p => p.ProductInventories)
             .OrderBy(p => p.Name)
             .AsNoTracking()
@@ -24,6 +25,7 @@ public class ProductRepository : IProductRepository
     public async Task<Product?> GetProductAsync(int idProduct)
     {
         return await _context.Products
+            .Include(p => p.Category)
             .Include(p => p.ProductInventories)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.IdProduct == idProduct);
@@ -65,12 +67,11 @@ public class ProductRepository : IProductRepository
         return await SaveAsync();
     }
 
-    public async Task<ICollection<string>> GetCategoriesAsync()
+    public async Task<ICollection<Category>> GetCategoriesAsync()
     {
-        return await _context.Products
-            .Select(p => p.Category)
-            .Distinct()
-            .OrderBy(c => c)
+        return await _context.Categories
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.Name)
             .AsNoTracking()
             .ToListAsync();
     }
