@@ -14,14 +14,18 @@
 
         <div class="erp-sidebar-section-title">Módulos</div>
         <nav class="erp-sidebar-nav">
-            <a href="/" class="erp-sidebar-link">
+            <NavLink href="/" class="erp-sidebar-link" Match="NavLinkMatch.All">
                 <i class="bi bi-house"></i>
                 <span>Inicio</span>
-            </a>
-            <a href="/stores" class="erp-sidebar-link active">
+            </NavLink>
+            <NavLink href="/stores" class="erp-sidebar-link" Match="NavLinkMatch.Prefix">
                 <i class="bi bi-shop"></i>
                 <span>Sucursales</span>
-            </a>
+            </NavLink>
+            <NavLink href="/products" class="erp-sidebar-link" Match="NavLinkMatch.Prefix">
+                <i class="bi bi-box-seam"></i>
+                <span>Productos</span>
+            </NavLink>
         </nav>
 
         <div class="mt-auto p-3 text-center border-top" style="border-color: rgba(255,255,255,0.08) !important;">
