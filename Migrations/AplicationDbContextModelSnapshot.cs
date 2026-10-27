@@ -50,6 +50,82 @@ namespace InventoryFlow.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("InventoryFlow.Models.InventoryMovement", b =>
+                {
+                    b.Property<int>("IdMovement")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IdMovement"));
+
+                    b.Property<string>("BatchNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("IdMovementType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IdProduct")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IdStore")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("MovementDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.HasKey("IdMovement");
+
+                    b.HasIndex("IdMovementType");
+
+                    b.HasIndex("IdProduct");
+
+                    b.HasIndex("IdStore");
+
+                    b.ToTable("InventoryMovements");
+                });
+
+            modelBuilder.Entity("InventoryFlow.Models.MovementType", b =>
+                {
+                    b.Property<int>("IdMovementType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("IdMovementType"));
+
+                    b.Property<DateTime>("CreationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPositive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("IdMovementType");
+
+                    b.ToTable("MovementTypes");
+                });
+
             modelBuilder.Entity("InventoryFlow.Models.Product", b =>
                 {
                     b.Property<int>("IdProduct")
@@ -196,6 +272,33 @@ namespace InventoryFlow.Migrations
                     b.HasKey("IdStoreType");
 
                     b.ToTable("StoreTypes");
+                });
+
+            modelBuilder.Entity("InventoryFlow.Models.InventoryMovement", b =>
+                {
+                    b.HasOne("InventoryFlow.Models.MovementType", "MovementType")
+                        .WithMany()
+                        .HasForeignKey("IdMovementType")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("InventoryFlow.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("IdProduct")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("InventoryFlow.Models.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("IdStore")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MovementType");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Store");
                 });
 
             modelBuilder.Entity("InventoryFlow.Models.Product", b =>

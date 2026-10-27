@@ -341,5 +341,56 @@ public static class DatabaseSeeder
                 }
             }
         }
+
+        // 6. Seed MovementTypes
+        if (!await context.MovementTypes.AnyAsync())
+        {
+            var movementTypes = new List<MovementType>
+            {
+                new()
+                {
+                    Name = "Entrada por Compra a Proveedor",
+                    Description = "Ingreso de mercadería desde distribuidor o laboratorio con nuevo lote y caducidad.",
+                    IsPositive = true,
+                    IsActive = true,
+                    CreationDate = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Salida por Atención Médica / Venta",
+                    Description = "Dispensación de insumos para consulta, hospitalización, cirugía o venta en mostrador (FEFO).",
+                    IsPositive = false,
+                    IsActive = true,
+                    CreationDate = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Baja por Caducidad / Merma",
+                    Description = "Retiro y desecho de fármacos vencidos o insumos dañados con justificación biológica.",
+                    IsPositive = false,
+                    IsActive = true,
+                    CreationDate = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Ajuste de Inventario (+)",
+                    Description = "Ingreso de stock sobrante detectado tras auditoría o conteo físico en bodega.",
+                    IsPositive = true,
+                    IsActive = true,
+                    CreationDate = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "Ajuste de Inventario (-)",
+                    Description = "Descuento de stock faltante detectado tras auditoría o conteo físico en bodega.",
+                    IsPositive = false,
+                    IsActive = true,
+                    CreationDate = DateTime.UtcNow
+                }
+            };
+
+            await context.MovementTypes.AddRangeAsync(movementTypes);
+            await context.SaveChangesAsync();
+        }
     }
 }
