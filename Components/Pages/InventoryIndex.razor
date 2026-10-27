@@ -1,0 +1,424 @@
+@page "/inventory"
+@rendermode InteractiveServer
+@inject IInventoryRepository InventoryRepository
+@inject IStoreRepository StoreRepository
+@inject IMapper Mapper
+
+<PageTitle>Inventario por Bodega - InventoryFlow</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small text-muted mb-0">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none" style="color: var(--brand-primary);">Inicio</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Inventario por Bodega</li>
+    </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1" style="color: var(--brand-dark);">
+            <i class="bi bi-boxes me-2" style="color: var(--brand-primary);"></i>Inventario y Existencias por Bodega
+        </h3>
+        <span class="text-secondary small">Monitoreo de existencias por sucursal, control de lotes y semáforo de caducidad (FEFO)</span>
+    </div>
+</div>
+
+@* KPI Cards Superiores *@
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon blue me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px;">
+                <i class="bi bi-box-seam"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Unidades en Bodega</small>
+                <strong class="fs-4" style="color: var(--brand-dark);">@TotalStockCount u.</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon orange me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #FEF3C7; color: #D97706;">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Lotes por Caducar (≤ 60d)</small>
+                <strong class="fs-4 text-warning">@ExpiringLotsCount lotes</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon red me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #FEE2E2; color: #DC2626;">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Lotes Bajo Umbral</small>
+                <strong class="fs-4 text-danger">@LowStockLotsCount lotes</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon green me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #DCFCE7; color: #16A34A;">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Valorizado en Stock</small>
+                <strong class="fs-4 text-success">$@TotalValuation.ToString("N2")</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Barra de Filtros ERP *@
+<div class="card border-0 shadow-sm mb-4" style="border-radius: 10px;">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Bodega / Sucursal</label>
+                <select class="form-select text-secondary" @bind="selectedStoreFilter">
+                    <option value="0">Todas las bodegas</option>
+                    @foreach (var store in availableStores)
+                    {
+                        <option value="@store.IdStore">@store.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Buscar Producto o Lote</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted">
+                        <i class="bi bi-search" style="color: var(--brand-primary);"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 ps-0" 
+                           placeholder="SKU, producto, lote..." 
+                           @bind="searchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(searchTerm))
+                    {
+                        <button class="btn btn-sm btn-link text-secondary text-decoration-none" type="button" @onclick="() => searchTerm = string.Empty">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Semáforo FEFO / Caducidad</label>
+                <select class="form-select text-secondary" @bind="selectedExpirationFilter">
+                    <option value="all">Todas las caducidades</option>
+                    <option value="expired">Lotes Vencidos</option>
+                    <option value="near">Por vencer (≤ 60 días)</option>
+                    <option value="valid">Vigentes (> 60 días)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Nivel de Stock</label>
+                <select class="form-select text-secondary" @bind="selectedStockFilter">
+                    <option value="all">Todo el stock</option>
+                    <option value="low">Bajo Umbral / Crítico</option>
+                    <option value="optimal">Stock Óptimo</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-md-end text-secondary small pt-3">
+                <strong style="color: var(--brand-dark);">@FilteredInventories.Count()</strong>/@inventories.Count
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Tabla de Inventario por Bodega *@
+<div class="med-card overflow-hidden">
+    <div class="table-responsive">
+        <table class="table med-table align-middle">
+            <thead>
+                <tr>
+                    <th scope="col" style="width: 220px;">Bodega / Sucursal</th>
+                    <th scope="col">Producto e Insumo</th>
+                    <th scope="col" style="width: 170px;">Categoría</th>
+                    <th scope="col" style="width: 140px;">Número Lote</th>
+                    <th scope="col" style="width: 200px;">Caducidad (FEFO)</th>
+                    <th scope="col" class="text-center" style="width: 140px;">Stock Físico</th>
+                    <th scope="col" class="text-end" style="width: 130px;">Valor Total</th>
+                    <th scope="col" class="text-end" style="width: 100px;">Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status" style="color: var(--brand-primary) !important;">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <div class="text-secondary mt-3 fw-medium">Consultando inventario por sucursal...</div>
+                        </td>
+                    </tr>
+                }
+                else if (!FilteredInventories.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-secondary">
+                            <div class="kpi-icon blue mx-auto mb-3" style="width: 64px; height: 64px; font-size: 2rem;">
+                                <i class="bi bi-inbox"></i>
+                            </div>
+                            <div class="fw-semibold fs-5 mb-1 text-dark">No se encontraron lotes ni inventario</div>
+                            <small class="text-secondary">Intenta con otros filtros o selecciona otra bodega.</small>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var inv in FilteredInventories)
+                    {
+                        var daysLeft = (inv.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays;
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="kpi-icon blue me-2" style="width: 36px; height: 36px; font-size: 1rem; border-radius: 8px;">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </div>
+                                    <div>
+                                        <strong style="color: var(--brand-dark); font-size: 0.90rem;">@inv.StoreName</strong>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div>
+                                    <span class="badge-sku-pill me-1">@inv.ProductSku</span>
+                                    <strong style="color: var(--brand-dark); font-size: 0.92rem;">@inv.ProductName</strong>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge-type-pill">
+                                    <i class="bi bi-tag" style="color: var(--brand-primary); font-size: 0.8rem;"></i>
+                                    @(string.IsNullOrEmpty(inv.CategoryName) ? "Sin categoría" : inv.CategoryName)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge-sku-pill" style="background: #EEF2F6; color: #1E293B;">
+                                    <i class="bi bi-upc-scan me-1 text-muted"></i>@inv.BatchNumber
+                                </span>
+                            </td>
+                            <td>
+                                @if (daysLeft < 0)
+                                {
+                                    <span class="badge-stock-out" title="Lote ya caducado. Retirar de circulación.">
+                                        <i class="bi bi-x-octagon-fill"></i> Vencido (@inv.ExpirationDate.ToString("dd/MM/yyyy"))
+                                    </span>
+                                }
+                                else if (daysLeft <= 60)
+                                {
+                                    <span class="badge-stock-low" title="Prioridad FEFO: Despachar primero. Vence en @((int)daysLeft) días.">
+                                        <i class="bi bi-clock-history"></i> En @((int)daysLeft)d (@inv.ExpirationDate.ToString("dd/MM/yyyy"))
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge-stock-optimal" title="Vigente. Fecha: @inv.ExpirationDate.ToString("dd/MM/yyyy")">
+                                        <i class="bi bi-shield-check"></i> Vigente (@inv.ExpirationDate.ToString("dd/MM/yyyy"))
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <div class="fw-bold" style="color: var(--brand-dark); font-size: 1rem;">
+                                    @inv.CurrentStock u.
+                                </div>
+                                @if (inv.CurrentStock <= inv.MinimumStockThreshold)
+                                {
+                                    <small class="text-danger fw-semibold" style="font-size: 0.75rem;">
+                                        <i class="bi bi-arrow-down"></i> Bajo umbral (@inv.MinimumStockThreshold u.)
+                                    </small>
+                                }
+                                else
+                                {
+                                    <small class="text-success" style="font-size: 0.75rem;">
+                                        <i class="bi bi-check"></i> Óptimo (min: @inv.MinimumStockThreshold)
+                                    </small>
+                                }
+                            </td>
+                            <td class="text-end fw-semibold" style="color: var(--brand-dark);">
+                                $@((inv.CurrentStock * inv.UnitPrice).ToString("N2"))
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-brand-ghost btn-sm" title="Ver trazabilidad del lote" @onclick="() => OpenDetailModal(inv)">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* MODAL DETALLE DE LOTE E INVENTARIO *@
+@if (showDetailModal && selectedInventory != null)
+{
+    var daysRemaining = (selectedInventory.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays;
+    <div class="modal fade show d-block modal-backdrop-blur" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content modal-medical-content border-0">
+                <div class="modal-header modal-medical-header">
+                    <h5 class="modal-title fw-bold d-flex align-items-center">
+                        <i class="bi bi-info-circle me-2" style="color: var(--brand-ice);"></i>Trazabilidad de Lote
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDetailModal"></button>
+                </div>
+                <div class="modal-body p-4 bg-white">
+                    <div class="p-3 mb-3 rounded-3" style="background: #F8FAFC; border: 1px solid #E2E8F0;">
+                        <span class="badge-sku-pill mb-1 d-inline-block">@selectedInventory.ProductSku</span>
+                        <h5 class="fw-bold mb-1" style="color: var(--brand-dark);">@selectedInventory.ProductName</h5>
+                        <small class="text-secondary">Categoría: @selectedInventory.CategoryName</small>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Bodega / Sede:</small>
+                            <strong style="color: var(--brand-dark);">@selectedInventory.StoreName</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Número de Lote:</small>
+                            <span class="badge-sku-pill">@selectedInventory.BatchNumber</span>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Stock en esta Bodega:</small>
+                            <strong class="fs-5" style="color: var(--brand-primary);">@selectedInventory.CurrentStock unidades</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Umbral Mínimo:</small>
+                            <strong style="color: var(--brand-dark);">@selectedInventory.MinimumStockThreshold unidades</strong>
+                        </div>
+                    </div>
+
+                    <div class="p-3 rounded-3 mb-3" style="background: #F0FDF4; border: 1px solid #DCFCE7;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted d-block">Fecha de Caducidad (FEFO):</small>
+                                <strong class="fs-6" style="color: var(--brand-dark);">
+                                    @selectedInventory.ExpirationDate.ToString("dd/MM/yyyy")
+                                </strong>
+                            </div>
+                            <div class="text-end">
+                                @if (daysRemaining < 0)
+                                {
+                                    <span class="badge-stock-out">Caducado</span>
+                                }
+                                else if (daysRemaining <= 60)
+                                {
+                                    <span class="badge-stock-low">Vence en @((int)daysRemaining) días</span>
+                                }
+                                else
+                                {
+                                    <span class="badge-stock-optimal">Vigente (@((int)daysRemaining) días)</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="text-secondary small">Valorizado total de este lote:</span>
+                        <strong class="fs-5" style="color: var(--brand-dark);">
+                            $@((selectedInventory.CurrentStock * selectedInventory.UnitPrice).ToString("N2"))
+                        </strong>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top py-2 px-4">
+                    <button type="button" class="btn btn-secondary btn-sm px-3 rounded-3" @onclick="CloseDetailModal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductInventoryDto> inventories = new();
+    private List<StoreDto> availableStores = new();
+    private bool isLoading = true;
+
+    private int selectedStoreFilter = 0;
+    private string searchTerm = string.Empty;
+    private string selectedExpirationFilter = "all";
+    private string selectedStockFilter = "all";
+
+    private bool showDetailModal = false;
+    private ProductInventoryDto? selectedInventory;
+
+    private IEnumerable<ProductInventoryDto> FilteredInventories =>
+        inventories.Where(i =>
+            (selectedStoreFilter == 0 || i.IdStore == selectedStoreFilter) &&
+            (string.IsNullOrWhiteSpace(searchTerm) ||
+             (i.ProductName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) ||
+             (i.ProductSku?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) ||
+             (i.BatchNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) ||
+             (i.StoreName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true)) &&
+            (selectedExpirationFilter == "all" ||
+             (selectedExpirationFilter == "expired" && (i.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays < 0) ||
+             (selectedExpirationFilter == "near" && (i.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays >= 0 && (i.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays <= 60) ||
+             (selectedExpirationFilter == "valid" && (i.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays > 60)) &&
+            (selectedStockFilter == "all" ||
+             (selectedStockFilter == "low" && i.CurrentStock <= i.MinimumStockThreshold) ||
+             (selectedStockFilter == "optimal" && i.CurrentStock > i.MinimumStockThreshold))
+        );
+
+    private int TotalStockCount => FilteredInventories.Sum(i => i.CurrentStock);
+
+    private int ExpiringLotsCount => FilteredInventories.Count(i =>
+        (i.ExpirationDate.Date - DateTime.UtcNow.Date).TotalDays <= 60);
+
+    private int LowStockLotsCount => FilteredInventories.Count(i =>
+        i.CurrentStock <= i.MinimumStockThreshold);
+
+    private decimal TotalValuation => FilteredInventories.Sum(i => i.CurrentStock * i.UnitPrice);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAsync();
+        await LoadInventoriesAsync();
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        try
+        {
+            var rawStores = await StoreRepository.GetStoresAsync();
+            availableStores = Mapper.Map<List<StoreDto>>(rawStores);
+        }
+        catch
+        {
+            availableStores = new();
+        }
+    }
+
+    private async Task LoadInventoriesAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var rawInventories = await InventoryRepository.GetInventoriesAsync();
+            inventories = Mapper.Map<List<ProductInventoryDto>>(rawInventories);
+        }
+        catch
+        {
+            inventories = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenDetailModal(ProductInventoryDto item)
+    {
+        selectedInventory = item;
+        showDetailModal = true;
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedInventory = null;
+    }
+}

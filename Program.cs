@@ -18,6 +18,7 @@ builder.Services.AddAutoMapper(typeof(StoreProfile));
 // 4. Inyección de Repositorios
 builder.Services.AddScoped<IStoreRepository, StoreRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IInventoryRepository, InventoryRepository>();
 
 // 5. Configuración de Controladores y OpenAPI (Web API)
 builder.Services.AddControllers();

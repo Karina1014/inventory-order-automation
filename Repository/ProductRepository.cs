@@ -22,13 +22,13 @@ public class ProductRepository : IProductRepository
             .ToListAsync();
     }
 
-    public async Task<Product?> GetProductAsync(int idProduct)
+    public async Task<Product> GetProductAsync(int idProduct)
     {
-        return await _context.Products
+        return (await _context.Products
             .Include(p => p.Category)
             .Include(p => p.ProductInventories)
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdProduct == idProduct);
+            .FirstOrDefaultAsync(p => p.IdProduct == idProduct))!;
     }
 
     public async Task<bool> ProductExistsAsync(int idProduct)

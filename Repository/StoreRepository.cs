@@ -21,12 +21,12 @@ public class StoreRepository : IStoreRepository
             .ToListAsync();
     }
 
-    public async Task<Store?> GetStoreAsync(int idStore)
+    public async Task<Store> GetStoreAsync(int idStore)
     {
-        return await _context.Stores
+        return (await _context.Stores
             .Include(s => s.StoreType)
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.IdStore == idStore);
+            .FirstOrDefaultAsync(s => s.IdStore == idStore))!;
     }
 
     public async Task<bool> StoreExistsAsync(int idStore)
