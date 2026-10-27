@@ -1,0 +1,724 @@
+@page "/movements"
+@rendermode InteractiveServer
+@inject IMovementRepository MovementRepository
+@inject IStoreRepository StoreRepository
+@inject IProductRepository ProductRepository
+@inject IInventoryRepository InventoryRepository
+@inject IMapper Mapper
+
+<PageTitle>Kárdex y Movimientos - InventoryFlow</PageTitle>
+
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small text-muted mb-0">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none" style="color: var(--brand-primary);">Inicio</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Movimientos / Kárdex</li>
+    </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1" style="color: var(--brand-dark);">
+            <i class="bi bi-arrow-left-right me-2" style="color: var(--brand-primary);"></i>Registro de Movimientos y Kárdex
+        </h3>
+        <span class="text-secondary small">Trazabilidad de entradas, salidas, dispensaciones médicas y mermas con control FEFO</span>
+    </div>
+    <div>
+        <button class="btn btn-brand-primary" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-circle me-1"></i> Registrar Movimiento
+        </button>
+    </div>
+</div>
+
+@* Alerta flotante de retroalimentación *@
+@if (!string.IsNullOrEmpty(feedbackMessage))
+{
+    <div class="alert @(isSuccessFeedback ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm mb-4" role="alert">
+        <i class="bi @(isSuccessFeedback ? "bi-check-circle-fill fs-5" : "bi-exclamation-triangle-fill fs-5")"></i>
+        <div class="flex-grow-1">@feedbackMessage</div>
+        <button type="button" class="btn-close" @onclick="() => feedbackMessage = string.Empty"></button>
+    </div>
+}
+
+@* KPI Cards Superiores *@
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon blue me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #E0F2FE; color: var(--brand-primary); display: flex; align-items: center; justify-content: center;">
+                <i class="bi bi-journal-text"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Total Movimientos</small>
+                <strong class="fs-4" style="color: var(--brand-dark);">@movements.Count reg.</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon green me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #DCFCE7; color: #16A34A; display: flex; align-items: center; justify-content: center;">
+                <i class="bi bi-arrow-down-left-circle"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Unidades Ingresadas (+)</small>
+                <strong class="fs-4 text-success">+@TotalInflowUnits u.</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon red me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #FEE2E2; color: #DC2626; display: flex; align-items: center; justify-content: center;">
+                <i class="bi bi-arrow-up-right-circle"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Unidades Egresadas (-)</small>
+                <strong class="fs-4 text-danger">-@TotalOutflowUnits u.</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="med-card p-3 d-flex align-items-center">
+            <div class="kpi-icon orange me-3" style="width: 48px; height: 48px; font-size: 1.25rem; border-radius: 12px; background: #FEF3C7; color: #D97706; display: flex; align-items: center; justify-content: center;">
+                <i class="bi bi-calendar-check"></i>
+            </div>
+            <div>
+                <small class="text-secondary d-block fw-medium">Operaciones Este Mes</small>
+                <strong class="fs-4 text-warning">@ThisMonthCount reg.</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Barra de Filtros ERP *@
+<div class="card border-0 shadow-sm mb-4" style="border-radius: 10px;">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Bodega / Sucursal</label>
+                <select class="form-select text-secondary" @bind="selectedStoreFilter">
+                    <option value="0">Todas las bodegas</option>
+                    @foreach (var store in availableStores)
+                    {
+                        <option value="@store.IdStore">@store.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-secondary mb-1">Tipo de Operación</label>
+                <select class="form-select text-secondary" @bind="selectedTypeFilter">
+                    <option value="0">Todos los tipos</option>
+                    @foreach (var mType in availableMovementTypes)
+                    {
+                        <option value="@mType.IdMovementType">@mType.Name (@(mType.IsPositive ? "+" : "-"))</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Sentido de Flujo</label>
+                <select class="form-select text-secondary" @bind="selectedFlowFilter">
+                    <option value="all">Todos los flujos</option>
+                    <option value="in">Solo Entradas (+)</option>
+                    <option value="out">Solo Salidas / Bajas (-)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Período</label>
+                <select class="form-select text-secondary" @bind="selectedPeriodFilter">
+                    <option value="all">Todo el historial</option>
+                    <option value="today">Solo Hoy</option>
+                    <option value="week">Últimos 7 días</option>
+                    <option value="month">Este Mes</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold text-secondary mb-1">Buscador</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted">
+                        <i class="bi bi-search" style="color: var(--brand-primary);"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 ps-0" 
+                           placeholder="SKU, producto, lote..." 
+                           @bind="searchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(searchTerm))
+                    {
+                        <button class="btn btn-sm btn-link text-secondary text-decoration-none" type="button" @onclick="() => searchTerm = string.Empty">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Tabla Principal de Kárdex *@
+<div class="card border-0 shadow-sm" style="border-radius: 10px; overflow: hidden;">
+    <div class="card-header bg-white py-3 px-3 d-flex justify-content-between align-items-center border-bottom">
+        <h6 class="mb-0 fw-bold" style="color: var(--brand-dark);">
+            <i class="bi bi-clock-history me-2" style="color: var(--brand-primary);"></i>Libro Diario de Movimientos (Kárdex)
+        </h6>
+        <span class="badge bg-light text-secondary border">
+            Mostrando @FilteredMovements.Count() registros
+        </span>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="text-secondary mt-2 mb-0 small">Consultando transacciones en base de datos...</p>
+        </div>
+    }
+    else if (!FilteredMovements.Any())
+    {
+        <div class="text-center p-5">
+            <div class="mb-3">
+                <i class="bi bi-folder-x text-muted" style="font-size: 3rem;"></i>
+            </div>
+            <h6 class="fw-semibold text-secondary">No se encontraron movimientos registrados</h6>
+            <p class="text-muted small mb-3">No hay transacciones registradas que coincidan con los filtros aplicados.</p>
+            <button class="btn btn-sm btn-brand-primary" @onclick="OpenCreateModal">
+                <i class="bi bi-plus-circle me-1"></i> Registrar Primer Movimiento
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table med-table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Fecha / Hora</th>
+                        <th>Tipo de Operación</th>
+                        <th>Sucursal / Bodega</th>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th class="text-end">Cantidad</th>
+                        <th>Motivo / Justificación</th>
+                        <th class="text-center" style="width: 90px;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in FilteredMovements)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex flex-column">
+                                    <span class="fw-semibold text-dark">@item.MovementDate.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                                    <small class="text-muted" style="font-size: 0.75rem;">@item.MovementDate.ToLocalTime().ToString("HH:mm:ss")</small>
+                                </div>
+                            </td>
+                            <td>
+                                @if (item.IsPositive)
+                                {
+                                    <span class="badge" style="background-color: #DCFCE7; color: #166534; border: 1px solid #86EFAC; font-weight: 600; padding: 5px 10px; border-radius: 20px;">
+                                        <i class="bi bi-arrow-down-left-circle me-1"></i>@item.MovementTypeName
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge" style="background-color: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; font-weight: 600; padding: 5px 10px; border-radius: 20px;">
+                                        <i class="bi bi-arrow-up-right-circle me-1"></i>@item.MovementTypeName
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge-type-pill">
+                                    <i class="bi bi-shop"></i>@item.StoreName
+                                </span>
+                            </td>
+                            <td>
+                                <div>
+                                    <div class="fw-bold text-dark">@item.ProductName</div>
+                                    <span class="badge badge-sku-pill mt-1">@item.ProductSku</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border px-2 py-1 font-monospace" style="font-size: 0.8rem;">
+                                    <i class="bi bi-upc-scan me-1 text-muted"></i>@item.BatchNumber
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                @if (item.IsPositive)
+                                {
+                                    <span class="fw-bold fs-6 text-success">+@item.Quantity u.</span>
+                                }
+                                else
+                                {
+                                    <span class="fw-bold fs-6 text-danger">-@item.Quantity u.</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="text-secondary small text-truncate" style="max-width: 250px;" title="@item.Reason">
+                                    @item.Reason
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-brand-ghost" @onclick="() => OpenDetailModal(item)" title="Ver Detalle Completo">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* MODAL: REGISTRAR NUEVO MOVIMIENTO *@
+@if (showCreateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(3, 4, 94, 0.45); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, var(--brand-dark), var(--brand-primary));">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-plus-circle me-2"></i>Registrar Movimiento en Kárdex
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseCreateModal" disabled="@isSubmitting"></button>
+                </div>
+                
+                <EditForm Model="createModel" OnValidSubmit="HandleCreateMovement">
+                    <DataAnnotationsValidator />
+
+                    <div class="modal-body p-4">
+                        @if (!string.IsNullOrEmpty(modalErrorMessage))
+                        {
+                            <div class="alert alert-danger d-flex align-items-center gap-2 small mb-3">
+                                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                                <div>@modalErrorMessage</div>
+                            </div>
+                        }
+
+                        <div class="row g-3">
+                            @* 1. Sucursal *@
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Bodega / Sucursal *</label>
+                                <select class="form-select" @bind="createModel.IdStore" @bind:after="OnStoreOrProductChanged">
+                                    <option value="0">-- Seleccione Sucursal --</option>
+                                    @foreach (var s in availableStores)
+                                    {
+                                        <option value="@s.IdStore">@s.Name</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => createModel.IdStore" class="text-danger small" />
+                            </div>
+
+                            @* 2. Tipo de Movimiento *@
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Tipo de Movimiento *</label>
+                                <select class="form-select" @bind="createModel.IdMovementType" @bind:after="OnMovementTypeChanged">
+                                    <option value="0">-- Seleccione Tipo --</option>
+                                    @foreach (var t in availableMovementTypes)
+                                    {
+                                        <option value="@t.IdMovementType">@t.Name (@(t.IsPositive ? "Entrada +" : "Salida -"))</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => createModel.IdMovementType" class="text-danger small" />
+                            </div>
+
+                            @* Banner informativo del tipo seleccionado *@
+                            @if (selectedMovementTypeObj.IdMovementType > 0)
+                            {
+                                <div class="col-12">
+                                    <div class="p-2 px-3 rounded small d-flex align-items-center gap-2 @(selectedMovementTypeObj.IsPositive ? "bg-success-subtle text-success border border-success-subtle" : "bg-danger-subtle text-danger border border-danger-subtle")">
+                                        <i class="bi @(selectedMovementTypeObj.IsPositive ? "bi-box-arrow-in-down" : "bi-box-arrow-up") fs-5"></i>
+                                        <div>
+                                            <strong>@(selectedMovementTypeObj.IsPositive ? "Operación de INGRESO (+)" : "Operación de EGRESO / DESPACHO (-)"):</strong>
+                                            @selectedMovementTypeObj.Description
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @* 3. Producto *@
+                            <div class="col-md-8">
+                                <label class="form-label small fw-semibold text-secondary">Producto del Catálogo *</label>
+                                <select class="form-select" @bind="createModel.IdProduct" @bind:after="OnStoreOrProductChanged">
+                                    <option value="0">-- Seleccione Producto --</option>
+                                    @foreach (var p in availableProducts)
+                                    {
+                                        <option value="@p.IdProduct">[@p.Sku] @p.Name</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => createModel.IdProduct" class="text-danger small" />
+                            </div>
+
+                            @* 4. Cantidad *@
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold text-secondary">Cantidad de Unidades *</label>
+                                <InputNumber @bind-Value="createModel.Quantity" class="form-control" min="1" placeholder="Ej: 10" />
+                                <ValidationMessage For="() => createModel.Quantity" class="text-danger small" />
+                            </div>
+
+                            @* CASO ENTRADA (+) : LOTE Y FECHA DE CADUCIDAD *@
+                            @if (selectedMovementTypeObj.IdMovementType > 0 && selectedMovementTypeObj.IsPositive)
+                            {
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold text-secondary">Código / Número de Lote</label>
+                                    <InputText @bind-Value="createModel.BatchNumber" class="form-control" placeholder="Ej: LOT-2026-A1 (opcional)" />
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Si se deja en blanco, el sistema generará automáticamente un identificador con fecha.</small>
+                                    <ValidationMessage For="() => createModel.BatchNumber" class="text-danger small" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold text-secondary">Fecha de Caducidad (Vencimiento)</label>
+                                    <InputDate @bind-Value="createModel.ExpirationDate" class="form-control" />
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Recomendado para el semáforo FEFO de fármacos y biológicos.</small>
+                                    <ValidationMessage For="() => createModel.ExpirationDate" class="text-danger small" />
+                                </div>
+                            }
+
+                            @* CASO SALIDA (-) : EXPLICACIÓN FEFO Y SELECCIÓN DE LOTE *@
+                            @if (selectedMovementTypeObj.IdMovementType > 0 && !selectedMovementTypeObj.IsPositive)
+                            {
+                                <div class="col-12">
+                                    <div class="card border-0 bg-light p-3">
+                                        <div class="d-flex align-items-start gap-2 mb-2">
+                                            <i class="bi bi-shield-check text-primary fs-5 mt-1"></i>
+                                            <div>
+                                                <strong class="d-block text-dark small">Motor Automático FEFO (First Expired, First Out)</strong>
+                                                <span class="text-secondary small">Si dejas el lote en blanco, el sistema consumirá de manera automática las existencias del lote con vencimiento más próximo en esta bodega.</span>
+                                            </div>
+                                        </div>
+
+                                        @if (availableStockLots.Any())
+                                        {
+                                            <div class="mt-2">
+                                                <label class="form-label small fw-semibold text-secondary mb-1">
+                                                    Seleccionar Lote Específico (Opcional - @availableStockLots.Sum(l => l.CurrentStock) u. disponibles):
+                                                </label>
+                                                <select class="form-select form-select-sm" @bind="createModel.BatchNumber">
+                                                    <option value="">-- Consumo Automático FEFO (Recomendado) --</option>
+                                                    @foreach (var lot in availableStockLots)
+                                                    {
+                                                        <option value="@lot.BatchNumber">
+                                                            Lote: @lot.BatchNumber | Stock: @lot.CurrentStock u. | Vence: @lot.ExpirationDate.ToString("dd/MM/yyyy")
+                                                        </option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        }
+                                        else if (createModel.IdStore > 0 && createModel.IdProduct > 0)
+                                        {
+                                            <div class="alert alert-warning py-1 px-2 small mb-0 mt-2">
+                                                <i class="bi bi-exclamation-circle me-1"></i> No se detectan lotes con existencias para este producto en la bodega seleccionada.
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            @* 5. Motivo / Justificación *@
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold text-secondary">Motivo o Referencia Documental *</label>
+                                <InputTextArea @bind-Value="createModel.Reason" class="form-control" rows="2" placeholder="Ej: Recepción Factura #F-902, Dispensación Cirugía Mascota Toby, Merma por frasco quebrado..." />
+                                <ValidationMessage For="() => createModel.Reason" class="text-danger small" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer bg-light px-4 py-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseCreateModal" disabled="@isSubmitting">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-brand-primary btn-sm" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>Procesando Kárdex...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>Confirmar y Guardar</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* MODAL: VER DETALLE DE MOVIMIENTO *@
+@if (showDetailModal && selectedMovement.IdMovement > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(3, 4, 94, 0.45); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, var(--brand-dark), var(--brand-primary));">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-receipt-cutoff me-2"></i>Comprobante de Movimiento #@selectedMovement.IdMovement
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDetailModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center p-3 mb-3 rounded" style="background-color: @(selectedMovement.IsPositive ? "#DCFCE7" : "#FEE2E2");">
+                        <small class="text-muted text-uppercase fw-semibold d-block">Impacto en Kárdex</small>
+                        <h2 class="fw-bold mb-0 @(selectedMovement.IsPositive ? "text-success" : "text-danger")">
+                            @(selectedMovement.IsPositive ? "+" : "-")@selectedMovement.Quantity unidades
+                        </h2>
+                        <span class="badge @(selectedMovement.IsPositive ? "bg-success" : "bg-danger") mt-1">
+                            @selectedMovement.MovementTypeName
+                        </span>
+                    </div>
+
+                    <ul class="list-group list-group-flush small">
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span class="text-secondary fw-semibold">Fecha y Hora:</span>
+                            <span class="text-dark fw-bold">@selectedMovement.MovementDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span class="text-secondary fw-semibold">Sucursal / Bodega:</span>
+                            <span class="text-dark">@selectedMovement.StoreName</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span class="text-secondary fw-semibold">Producto:</span>
+                            <span class="text-dark fw-bold">@selectedMovement.ProductName</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span class="text-secondary fw-semibold">Código SKU:</span>
+                            <span class="badge bg-light text-dark border">@selectedMovement.ProductSku</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span class="text-secondary fw-semibold">Lote Afectado:</span>
+                            <span class="badge bg-light text-primary border font-monospace">@selectedMovement.BatchNumber</span>
+                        </li>
+                        <li class="list-group-item px-0 py-2">
+                            <span class="text-secondary fw-semibold d-block mb-1">Motivo / Justificación:</span>
+                            <div class="p-2 bg-light rounded text-secondary border">
+                                @selectedMovement.Reason
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="modal-footer bg-light px-4 py-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseDetailModal">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<InventoryMovementDto> movements = new();
+    private List<StoreDto> availableStores = new();
+    private List<MovementTypeDto> availableMovementTypes = new();
+    private List<ProductDto> availableProducts = new();
+    private List<ProductInventoryDto> availableStockLots = new();
+
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+
+    // Filtros
+    private int selectedStoreFilter = 0;
+    private int selectedTypeFilter = 0;
+    private string selectedFlowFilter = "all";
+    private string selectedPeriodFilter = "all";
+    private string searchTerm = string.Empty;
+
+    // Mensajes y retroalimentación
+    private string feedbackMessage = string.Empty;
+    private bool isSuccessFeedback = true;
+    private string modalErrorMessage = string.Empty;
+
+    // Modales
+    private bool showCreateModal = false;
+    private bool showDetailModal = false;
+    private CreateMovementDto createModel = new();
+    private MovementTypeDto selectedMovementTypeObj = new();
+    private InventoryMovementDto selectedMovement = new();
+
+    // Propiedades calculadas para KPIs y Filtros
+    private IEnumerable<InventoryMovementDto> FilteredMovements =>
+        movements.Where(m =>
+            (selectedStoreFilter == 0 || m.IdStore == selectedStoreFilter) &&
+            (selectedTypeFilter == 0 || m.IdMovementType == selectedTypeFilter) &&
+            (selectedFlowFilter == "all" ||
+             (selectedFlowFilter == "in" && m.IsPositive) ||
+             (selectedFlowFilter == "out" && !m.IsPositive)) &&
+            (selectedPeriodFilter == "all" ||
+             (selectedPeriodFilter == "today" && m.MovementDate.Date == DateTime.UtcNow.Date) ||
+             (selectedPeriodFilter == "week" && (DateTime.UtcNow.Date - m.MovementDate.Date).TotalDays <= 7) ||
+             (selectedPeriodFilter == "month" && m.MovementDate.Month == DateTime.UtcNow.Month && m.MovementDate.Year == DateTime.UtcNow.Year)) &&
+            (string.IsNullOrWhiteSpace(searchTerm) ||
+             m.ProductName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             m.ProductSku.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             m.BatchNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             m.Reason.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             m.StoreName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        );
+
+    private int TotalInflowUnits => movements.Where(m => m.IsPositive).Sum(m => m.Quantity);
+    private int TotalOutflowUnits => movements.Where(m => !m.IsPositive).Sum(m => m.Quantity);
+    private int ThisMonthCount => movements.Count(m => m.MovementDate.Month == DateTime.UtcNow.Month && m.MovementDate.Year == DateTime.UtcNow.Year);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCatalogsAsync();
+        await LoadMovementsAsync();
+    }
+
+    private async Task LoadCatalogsAsync()
+    {
+        try
+        {
+            var rawStores = await StoreRepository.GetStoresAsync();
+            availableStores = Mapper.Map<List<StoreDto>>(rawStores);
+
+            var rawTypes = await MovementRepository.GetMovementTypesAsync();
+            availableMovementTypes = Mapper.Map<List<MovementTypeDto>>(rawTypes);
+
+            var rawProducts = await ProductRepository.GetProductsAsync();
+            availableProducts = Mapper.Map<List<ProductDto>>(rawProducts.Where(p => p.IsActive).ToList());
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error al cargar catálogos: {ex.Message}";
+            isSuccessFeedback = false;
+        }
+    }
+
+    private async Task LoadMovementsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var rawMovements = await MovementRepository.GetMovementsAsync();
+            movements = Mapper.Map<List<InventoryMovementDto>>(rawMovements);
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error al consultar movimientos: {ex.Message}";
+            isSuccessFeedback = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        createModel = new CreateMovementDto
+        {
+            Quantity = 1,
+            ExpirationDate = DateTime.Today.AddMonths(12)
+        };
+        selectedMovementTypeObj = new();
+        availableStockLots.Clear();
+        modalErrorMessage = string.Empty;
+        showCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        showCreateModal = false;
+        modalErrorMessage = string.Empty;
+    }
+
+    private void OnMovementTypeChanged()
+    {
+        var foundType = availableMovementTypes.FirstOrDefault(t => t.IdMovementType == createModel.IdMovementType);
+        selectedMovementTypeObj = foundType ?? new();
+    }
+
+    private async Task OnStoreOrProductChanged()
+    {
+        if (createModel.IdStore > 0 && createModel.IdProduct > 0)
+        {
+            try
+            {
+                var rawInventories = await InventoryRepository.GetInventoriesByStoreAsync(createModel.IdStore);
+                availableStockLots = Mapper.Map<List<ProductInventoryDto>>(
+                    rawInventories.Where(i => i.IdProduct == createModel.IdProduct && i.CurrentStock > 0)
+                                  .OrderBy(i => i.ExpirationDate)
+                                  .ToList()
+                );
+            }
+            catch
+            {
+                availableStockLots.Clear();
+            }
+        }
+        else
+        {
+            availableStockLots.Clear();
+        }
+    }
+
+    private async Task HandleCreateMovement()
+    {
+        modalErrorMessage = string.Empty;
+
+        if (createModel.IdStore <= 0)
+        {
+            modalErrorMessage = "Debe seleccionar una sucursal / bodega.";
+            return;
+        }
+
+        if (createModel.IdMovementType <= 0)
+        {
+            modalErrorMessage = "Debe seleccionar un tipo de movimiento.";
+            return;
+        }
+
+        if (createModel.IdProduct <= 0)
+        {
+            modalErrorMessage = "Debe seleccionar un producto.";
+            return;
+        }
+
+        if (createModel.Quantity <= 0)
+        {
+            modalErrorMessage = "La cantidad debe ser mayor a 0.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(createModel.Reason))
+        {
+            modalErrorMessage = "Debe ingresar una justificación o motivo del movimiento.";
+            return;
+        }
+
+        isSubmitting = true;
+        try
+        {
+            var result = await MovementRepository.RegisterMovementAsync(createModel);
+            if (result.Success)
+            {
+                showCreateModal = false;
+                feedbackMessage = result.Message;
+                isSuccessFeedback = true;
+                await LoadMovementsAsync();
+            }
+            else
+            {
+                modalErrorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            modalErrorMessage = $"Excepción al registrar movimiento: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void OpenDetailModal(InventoryMovementDto item)
+    {
+        selectedMovement = item;
+        showDetailModal = true;
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedMovement = new();
+    }
+}
